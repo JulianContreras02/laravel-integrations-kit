@@ -7,7 +7,9 @@ namespace App\Providers;
 use App\Integrations\Partner\OAuth\ClientCredentials;
 use App\Integrations\Partner\OAuth\ClientCredentialsTokenProvider;
 use App\Integrations\Partner\PartnerApiClient;
+use App\Reports\DailyOrdersExporter;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Config;
@@ -42,6 +44,15 @@ class AppServiceProvider extends ServiceProvider
             tokens: $app->make(ClientCredentialsTokenProvider::class),
             baseUrl: Config::string('partner.api.base_url'),
             timeoutSeconds: Config::integer('partner.api.timeout_seconds'),
+        ));
+
+        $this->app->bind(DailyOrdersExporter::class, fn (Application $app): DailyOrdersExporter => new DailyOrdersExporter(
+            storage: $app->make(FilesystemFactory::class),
+            disk: Config::string('reports.disk'),
+            directory: Config::string('reports.directory'),
+            timezone: Config::string('reports.timezone'),
+            chunkSize: Config::integer('reports.chunk_size'),
+            temporaryDirectory: self::optionalString('reports.temp_directory'),
         ));
     }
 

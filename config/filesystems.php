@@ -49,7 +49,9 @@ return [
             'report' => false,
         ],
 
-        's3' => [
+        // Generated reports. Without explicit keys the AWS SDK falls back to
+        // its default credential chain (an IAM role in production).
+        'reports' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
@@ -57,8 +59,11 @@ return [
             'bucket' => env('AWS_BUCKET'),
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
+            'use_path_style_endpoint' => (bool) env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            // Fail loudly: a silent "false" from a failed upload would let the
+            // pipeline mark a report as delivered when it is not.
+            'throw' => true,
             'report' => false,
         ],
 

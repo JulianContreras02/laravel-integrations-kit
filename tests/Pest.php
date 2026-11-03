@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
 
 /*
@@ -47,6 +48,31 @@ function tokenResponse(string $token, ?int $expiresIn = 3600): array
         'token_type' => 'Bearer',
         'expires_in' => $expiresIn,
     ]);
+}
+
+/**
+ * Every row of the first sheet of an XLSX file, as plain PHP values.
+ *
+ * @return list<list<mixed>>
+ */
+function readSpreadsheet(string $path): array
+{
+    $reader = new Reader;
+    $reader->open($path);
+
+    $rows = [];
+
+    foreach ($reader->getSheetIterator() as $sheet) {
+        foreach ($sheet->getRowIterator() as $row) {
+            $rows[] = $row->toArray();
+        }
+
+        break;
+    }
+
+    $reader->close();
+
+    return $rows;
 }
 
 function freeTcpPort(): int

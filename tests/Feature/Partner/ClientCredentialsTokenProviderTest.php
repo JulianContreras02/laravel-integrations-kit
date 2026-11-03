@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Integrations\Partner\OAuth\ClientCredentials;
 use App\Integrations\Partner\OAuth\ClientCredentialsTokenProvider;
 use App\Integrations\Partner\OAuth\TokenRequestFailed;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     config()->set('partner.oauth.token_url', 'https://partner.test/oauth/token');
@@ -131,4 +135,35 @@ it('prints a fingerprint of the token, never the token itself', function () {
         ->expectsOutputToContain(substr(hash('sha256', 'super-secret-token'), 0, 12))
         ->doesntExpectOutputToContain('super-secret-token')
         ->assertSuccessful();
+});
+
+it('does not drop a token that another worker already refreshed', function () {
+    Http::fake(['partner.test/oauth/token' => Http::sequence()
+        ->push(tokenResponse('old-token'))
+        ->push(tokenResponse('new-token'))
+        ->push(tokenResponse('unexpected-token')),
+    ]);
+
+    $old = tokens()->token();
+
+    // Worker A got a 401 with the old token, dropped it and fetched a new one.
+    tokens()->forget($old);
+    tokens()->token();
+
+    // Worker B got its 401 with the same old token a moment later.
+    tokens()->forget($old);
+
+    expect(tokens()->token()->value)->toBe('new-token');
+    Http::assertSentCount(2);
+});
+
+it('fails fast instead of piling up when another worker holds the refresh lock too long', function () {
+    Sleep::fake(syncWithCarbon: true);
+    Http::fake(['partner.test/oauth/token' => tokenResponse('a-token')]);
+
+    $credentials = new ClientCredentials('https://partner.test/oauth/token', 'test-client', 'test-secret', 'reports:write');
+    Cache::lock($credentials->cacheKey().':refresh', 15)->acquire();
+
+    expect(fn () => tokens()->token())->toThrow(LockTimeoutException::class);
+    Http::assertNothingSent();
 });

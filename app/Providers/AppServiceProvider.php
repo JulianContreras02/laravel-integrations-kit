@@ -31,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
                 ),
                 timeoutSeconds: Config::integer('partner.oauth.timeout_seconds'),
                 expiryMarginSeconds: Config::integer('partner.oauth.expiry_margin_seconds'),
+                lockSeconds: Config::integer('partner.oauth.lock_seconds'),
+                lockWaitSeconds: Config::integer('partner.oauth.lock_wait_seconds'),
             );
         });
     }

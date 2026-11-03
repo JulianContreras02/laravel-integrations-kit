@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /*
@@ -27,3 +28,37 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->group('integration')
     ->in('Integration');
+
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
+function freeTcpPort(): int
+{
+    $socket = stream_socket_server('tcp://127.0.0.1:0');
+    $address = (string) stream_socket_get_name($socket, false);
+    fclose($socket);
+
+    return (int) Str::afterLast($address, ':');
+}
+
+function waitForTcpPort(int $port, float $timeoutSeconds = 5.0): void
+{
+    $deadline = microtime(true) + $timeoutSeconds;
+
+    while (microtime(true) < $deadline) {
+        $connection = @fsockopen('127.0.0.1', $port, timeout: 0.1);
+
+        if ($connection !== false) {
+            fclose($connection);
+
+            return;
+        }
+
+        usleep(50_000);
+    }
+
+    throw new RuntimeException("Nothing is listening on 127.0.0.1:{$port}.");
+}

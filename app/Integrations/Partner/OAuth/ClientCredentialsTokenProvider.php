@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace App\Integrations\Partner\OAuth;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use LogicException;
 
 /**
  * Obtains bearer tokens with the OAuth2 client credentials grant (RFC 6749,
  * section 4.4) and keeps them in a shared cache for as long as they are valid.
+ *
+ * When the token is missing or expired, many workers notice at the same
+ * time. Only the one holding the refresh lock asks the partner for a new
+ * token; the others wait for the lock and then read what it stored.
  */
 final class ClientCredentialsTokenProvider
 {
@@ -21,25 +28,61 @@ final class ClientCredentialsTokenProvider
      */
     private const int DEFAULT_EXPIRES_IN = 300;
 
+    private readonly LockProvider $locks;
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly Repository $cache,
         private readonly ClientCredentials $credentials,
         private readonly int $timeoutSeconds = 5,
         private readonly int $expiryMarginSeconds = 60,
-    ) {}
+        private readonly int $lockSeconds = 15,
+        private readonly int $lockWaitSeconds = 10,
+    ) {
+        $store = $cache->getStore();
+
+        if (! $store instanceof LockProvider) {
+            throw new LogicException('The OAuth token cache store must support atomic locks.');
+        }
+
+        $this->locks = $store;
+    }
 
     public function token(): AccessToken
     {
-        return $this->cached() ?? $this->requestAndStore();
+        return $this->cached() ?? $this->refresh();
     }
 
     /**
-     * Drops the cached token, for example after the API rejected it.
+     * Drops the cached token after the API rejected it, unless another worker
+     * already replaced it: forgetting a fresh token would only cause another
+     * round of refreshes.
      */
-    public function forget(): void
+    public function forget(AccessToken $rejected): void
     {
-        $this->cache->forget($this->credentials->cacheKey());
+        $this->lock()->block($this->lockWaitSeconds, function () use ($rejected): void {
+            if ($this->cached()?->is($rejected) === true) {
+                $this->cache->forget($this->credentials->cacheKey());
+            }
+        });
+    }
+
+    private function refresh(): AccessToken
+    {
+        /** @var AccessToken $token block() hands back what the callback returned. */
+        $token = $this->lock()->block(
+            $this->lockWaitSeconds,
+            // Check again under the lock: the worker we were waiting for has
+            // probably stored a fresh token already.
+            fn (): AccessToken => $this->cached() ?? $this->requestAndStore(),
+        );
+
+        return $token;
+    }
+
+    private function lock(): Lock
+    {
+        return $this->locks->lock($this->credentials->cacheKey().':refresh', $this->lockSeconds);
     }
 
     private function cached(): ?AccessToken

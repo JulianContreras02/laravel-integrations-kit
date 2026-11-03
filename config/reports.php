@@ -17,6 +17,11 @@ return [
 
     'timezone' => env('REPORT_TIMEZONE', 'America/Bogota'),
 
+    // A run without --date delivers every day of this window that has no
+    // completed delivery. Older gaps are not sent automatically: after a
+    // long outage a person decides, instead of flooding the partner.
+    'catch_up_days' => 3,
+
     // Where the generated files live (an S3 bucket in every environment).
     'disk' => env('REPORTS_DISK', 'reports'),
     'directory' => 'daily-orders',

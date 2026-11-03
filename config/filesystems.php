@@ -67,6 +67,23 @@ return [
             'report' => false,
         ],
 
+        // The partner's SFTP drop box. Use a private key in production and pin
+        // the server's host key fingerprint so nobody can impersonate it.
+        'partner_sftp' => [
+            'driver' => 'sftp',
+            'host' => env('PARTNER_SFTP_HOST'),
+            'port' => (int) env('PARTNER_SFTP_PORT', 22),
+            'username' => env('PARTNER_SFTP_USERNAME'),
+            'password' => env('PARTNER_SFTP_PASSWORD'),
+            'privateKey' => env('PARTNER_SFTP_PRIVATE_KEY'),
+            'passphrase' => env('PARTNER_SFTP_PASSPHRASE'),
+            'hostFingerprint' => env('PARTNER_SFTP_HOST_FINGERPRINT'),
+            'root' => env('PARTNER_SFTP_ROOT', '/'),
+            'timeout' => 10,
+            'throw' => true,
+            'report' => false,
+        ],
+
     ],
 
     /*

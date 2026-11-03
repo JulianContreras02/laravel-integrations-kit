@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Delivery\SftpDelivery;
 use App\Integrations\Partner\OAuth\ClientCredentials;
 use App\Integrations\Partner\OAuth\ClientCredentialsTokenProvider;
 use App\Integrations\Partner\PartnerApiClient;
@@ -53,6 +54,12 @@ class AppServiceProvider extends ServiceProvider
             timezone: Config::string('reports.timezone'),
             chunkSize: Config::integer('reports.chunk_size'),
             temporaryDirectory: self::optionalString('reports.temp_directory'),
+        ));
+
+        $this->app->bind(SftpDelivery::class, fn (Application $app): SftpDelivery => new SftpDelivery(
+            storage: $app->make(FilesystemFactory::class),
+            remoteDisk: Config::string('partner.sftp.disk'),
+            backoffMilliseconds: array_values(array_filter(Config::array('partner.sftp.backoff_ms'), is_int(...))),
         ));
     }
 

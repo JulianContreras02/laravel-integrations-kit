@@ -54,4 +54,21 @@ return [
         'lock_wait_seconds' => 10,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | SFTP Delivery
+    |--------------------------------------------------------------------------
+    |
+    | Short in-process retries absorb network blips (a reset connection, a
+    | busy server). Longer outages are left to the queue, which retries the
+    | whole job minutes later and resumes from the last completed step.
+    |
+    */
+
+    'sftp' => [
+        'disk' => 'partner_sftp',
+        // Pause before each retry, in milliseconds; two entries = three attempts.
+        'backoff_ms' => [1_000, 5_000],
+    ],
+
 ];

@@ -1,0 +1,111 @@
+# Local stand-ins for every external system the report pipeline talks to.
+# All credentials below are throwaway values for these local containers only.
+name: integrations-kit
+
+x-php: &php
+  build:
+    context: docker/php
+    args:
+      UID: ${APP_UID:-1000}
+  image: integrations-kit-php
+  volumes:
+    - .:/app
+    # vendor lives in a named volume: much faster than a Windows/macOS bind mount.
+    - vendor:/app/vendor
+
+services:
+  app:
+    <<: *php
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *php
+    command: php artisan queue:work --sleep=1 --tries=4
+    depends_on:
+      s3-setup:
+        condition: service_completed_successfully
+      sftp:
+        condition: service_healthy
+      partner-api:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  # S3-compatible object storage. RustFS validates SigV4 signatures like S3 does,
+  # so presigned URLs are really exercised (MinIO no longer publishes images).
+  s3:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: local-access-key
+      RUSTFS_SECRET_KEY: local-secret-key
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health"]
+      interval: 5s
+      start_period: 5s
+      retries: 20
+
+  # One-shot: creates the reports bucket with the official AWS CLI.
+  s3-setup:
+    image: amazon/aws-cli:2.31.30
+    environment:
+      AWS_ACCESS_KEY_ID: local-access-key
+      AWS_SECRET_ACCESS_KEY: local-secret-key
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        aws --endpoint-url http://s3:9000 s3api head-bucket --bucket reports 2>/dev/null
+        || aws --endpoint-url http://s3:9000 s3api create-bucket --bucket reports
+    depends_on:
+      s3:
+        condition: service_healthy
+
+  # The partner's SFTP drop box: user "partner", writable folder "inbound".
+  sftp:
+    image: atmoz/sftp:alpine
+    environment:
+      SFTP_USERS: partner:local-sftp-password:1001::inbound
+    ports:
+      - "2222:22"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      retries: 20
+
+  # The partner's API, including its OAuth2 token endpoint (stubs in docker/wiremock).
+  partner-api:
+    image: wiremock/wiremock:3.13.2
+    command: ["--global-response-templating", "--disable-banner"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./docker/wiremock:/home/wiremock
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/__admin/health"]
+      interval: 5s
+      retries: 20
+
+  # Catches every outgoing email; web UI on http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    environment:
+      # Same ceiling as SES v1 (10 MB after base64), so an oversized email fails here too.
+      MP_MAX_MESSAGE_SIZE: "10"
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  vendor:
+  s3-data:

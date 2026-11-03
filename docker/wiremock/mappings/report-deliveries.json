@@ -1,0 +1,45 @@
+{
+    "mappings": [
+        {
+            "name": "Report deliveries: register a delivered file",
+            "priority": 1,
+            "request": {
+                "method": "POST",
+                "urlPath": "/v1/report-deliveries",
+                "headers": {
+                    "Authorization": { "matches": "Bearer [A-Za-z0-9]{40}" },
+                    "Idempotency-Key": { "matches": ".+" }
+                },
+                "bodyPatterns": [
+                    { "matchesJsonPath": "$.report_key" },
+                    { "matchesJsonPath": "$.sha256" }
+                ]
+            },
+            "response": {
+                "status": 201,
+                "headers": { "Content-Type": "application/json" },
+                "jsonBody": {
+                    "id": "{{randomValue type='UUID'}}",
+                    "report_key": "{{jsonPath request.body '$.report_key'}}",
+                    "status": "received"
+                }
+            }
+        },
+        {
+            "name": "Report deliveries: missing or malformed bearer token",
+            "priority": 10,
+            "request": {
+                "method": "POST",
+                "urlPath": "/v1/report-deliveries"
+            },
+            "response": {
+                "status": 401,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "WWW-Authenticate": "Bearer error=\"invalid_token\""
+                },
+                "jsonBody": { "error": "invalid_token" }
+            }
+        }
+    ]
+}

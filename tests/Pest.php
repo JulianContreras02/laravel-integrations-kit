@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use OpenSpout\Reader\XLSX\Reader;
@@ -73,6 +74,52 @@ function readSpreadsheet(string $path): array
     $reader->close();
 
     return $rows;
+}
+
+/**
+ * WireMock's admin API, which plays the partner in integration tests.
+ */
+function wiremock(): PendingRequest
+{
+    return Http::baseUrl(config()->string('partner.api.base_url').'/__admin')->acceptJson()->asJson();
+}
+
+/**
+ * How many requests matching $pattern WireMock has received so far.
+ *
+ * @param  array<string, mixed>  $pattern
+ */
+function wiremockCount(array $pattern): int
+{
+    return (int) wiremock()->post('/requests/count', $pattern)->throw()->json('count');
+}
+
+/**
+ * Mailpit's API, which catches the emails sent in integration tests.
+ */
+function mailpit(): PendingRequest
+{
+    return Http::baseUrl(((string) env('MAILPIT_API_URL', 'http://mailpit:8025')).'/api/v1')->acceptJson();
+}
+
+/**
+ * The latest email sent to $recipient, waiting briefly for Mailpit to store it.
+ *
+ * @return array<string, mixed>
+ */
+function latestEmailTo(string $recipient): array
+{
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $summary = mailpit()->get('/search', ['query' => "to:{$recipient}"])->throw()->json('messages.0');
+
+        if (is_array($summary)) {
+            return mailpit()->get('/message/'.$summary['ID'])->throw()->json();
+        }
+
+        usleep(100_000);
+    }
+
+    throw new RuntimeException("No email reached {$recipient}.");
 }
 
 function freeTcpPort(): int

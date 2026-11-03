@@ -43,10 +43,15 @@ final class DailyOrdersExporter
         return 'daily-orders-'.$day->toDateString().'.xlsx';
     }
 
+    public function pathFor(CarbonImmutable $day): string
+    {
+        return $this->directory.'/'.$day->format('Y/m').'/'.self::fileName($day);
+    }
+
     public function export(CarbonImmutable $day): ExportedReport
     {
         $fileName = self::fileName($day);
-        $path = $this->directory.'/'.$day->format('Y/m').'/'.$fileName;
+        $path = $this->pathFor($day);
         $localFile = $this->temporaryDirectory().'/'.Str::ulid().'-'.$fileName;
 
         try {

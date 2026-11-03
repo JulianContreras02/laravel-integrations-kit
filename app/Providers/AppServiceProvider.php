@@ -8,10 +8,13 @@ use App\Delivery\SftpDelivery;
 use App\Integrations\Partner\OAuth\ClientCredentials;
 use App\Integrations\Partner\OAuth\ClientCredentialsTokenProvider;
 use App\Integrations\Partner\PartnerApiClient;
+use App\Mail\AttachmentPolicy;
+use App\Mail\ReportMailer;
 use App\Reports\DailyOrdersExporter;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
@@ -60,6 +63,20 @@ class AppServiceProvider extends ServiceProvider
             storage: $app->make(FilesystemFactory::class),
             remoteDisk: Config::string('partner.sftp.disk'),
             backoffMilliseconds: array_values(array_filter(Config::array('partner.sftp.backoff_ms'), is_int(...))),
+        ));
+
+        $this->app->bind(AttachmentPolicy::class, fn (): AttachmentPolicy => new AttachmentPolicy(
+            maxMessageBytes: Config::integer('reports.mail.max_message_bytes'),
+            headroomBytes: Config::integer('reports.mail.headroom_bytes'),
+        ));
+
+        $this->app->bind(ReportMailer::class, fn (Application $app): ReportMailer => new ReportMailer(
+            url: $app->make(UrlGenerator::class),
+            policy: $app->make(AttachmentPolicy::class),
+            recipients: array_values(array_filter(Config::array('reports.mail.to'), is_string(...))),
+            timezone: Config::string('reports.timezone'),
+            disk: Config::string('reports.disk'),
+            linkTtlDays: Config::integer('reports.mail.link_ttl_days'),
         ));
     }
 

@@ -67,6 +67,23 @@ return [
             'report' => false,
         ],
 
+        // Signs presigned URLs for browsers. SigV4 signs the host, so a URL
+        // signed for the internal endpoint (http://s3:9000 in Docker) cannot
+        // be rewritten to the public one afterwards; it has to be signed for
+        // the public host from the start. Signing needs no network call. With
+        // real S3 both endpoints are empty and this equals the reports disk.
+        'reports_public' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_PUBLIC_ENDPOINT') ?: env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => (bool) env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
+            'report' => false,
+        ],
+
         // The partner's SFTP drop box. Use a private key in production and pin
         // the server's host key fingerprint so nobody can impersonate it.
         'partner_sftp' => [

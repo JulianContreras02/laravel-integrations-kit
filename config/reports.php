@@ -29,4 +29,38 @@ return [
     // before being streamed to S3. On Lambda this is /tmp (ephemeral storage).
     'temp_directory' => env('REPORT_TEMP_DIRECTORY'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email
+    |--------------------------------------------------------------------------
+    |
+    | Small files are attached. Files that would push the message over the
+    | mail provider's limit are replaced by a signed download link.
+    |
+    */
+
+    'mail' => [
+        'to' => array_filter(explode(',', (string) env('REPORT_MAIL_TO', 'ops@partner.example'))),
+
+        // Ceiling for the whole message after base64 encoding. Amazon SES:
+        // 10 MB with the v1 API (Laravel's "ses" mailer), 40 MB with the v2 API
+        // ("ses-v2") or SMTP. The recipient's server may accept less, so the
+        // default stays at 10 MB, read as 10,000,000 bytes to be safe.
+        'max_message_bytes' => (int) env('REPORT_MAIL_MAX_MESSAGE_BYTES', 10_000_000),
+
+        // Room for headers, the HTML and text bodies and MIME boundaries.
+        'headroom_bytes' => 256 * 1024,
+
+        // How long the emailed download link keeps working.
+        'link_ttl_days' => 7,
+
+        // Lifetime of the S3 URL the link redirects to. Short on purpose: a
+        // presigned URL works for anyone who has it.
+        'presigned_url_ttl_minutes' => 5,
+    ],
+
+    // Disk used only to sign download URLs. Same bucket and credentials as
+    // "disk", but with the endpoint the browser can reach (see filesystems).
+    'signing_disk' => env('REPORTS_SIGNING_DISK', 'reports_public'),
+
 ];

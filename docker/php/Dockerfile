@@ -5,8 +5,9 @@ FROM php:8.4-cli-bookworm
 # zip: OpenSpout writes XLSX files (a zip container).
 # pcntl: lets queue:work honour job timeouts and stop gracefully.
 # intl: Laravel's Number helpers (file sizes in the email).
+# pcov: code coverage for the test suite.
 COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions zip pcntl intl \
+RUN install-php-extensions zip pcntl intl pcov \
     && apt-get update \
     && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*

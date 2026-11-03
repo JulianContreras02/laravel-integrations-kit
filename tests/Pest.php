@@ -35,6 +35,20 @@ pest()->extend(TestCase::class)
 |--------------------------------------------------------------------------
 */
 
+/**
+ * Body of an OAuth2 token response.
+ *
+ * @return array<string, int|string>
+ */
+function tokenResponse(string $token, ?int $expiresIn = 3600): array
+{
+    return array_filter([
+        'access_token' => $token,
+        'token_type' => 'Bearer',
+        'expires_in' => $expiresIn,
+    ]);
+}
+
 function freeTcpPort(): int
 {
     $socket = stream_socket_server('tcp://127.0.0.1:0');

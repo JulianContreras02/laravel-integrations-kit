@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Integrations\Partner\OAuth\ClientCredentials;
 use App\Integrations\Partner\OAuth\ClientCredentialsTokenProvider;
+use App\Integrations\Partner\PartnerApiClient;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -35,6 +36,13 @@ class AppServiceProvider extends ServiceProvider
                 lockWaitSeconds: Config::integer('partner.oauth.lock_wait_seconds'),
             );
         });
+
+        $this->app->singleton(PartnerApiClient::class, fn (Application $app): PartnerApiClient => new PartnerApiClient(
+            http: $app->make(HttpFactory::class),
+            tokens: $app->make(ClientCredentialsTokenProvider::class),
+            baseUrl: Config::string('partner.api.base_url'),
+            timeoutSeconds: Config::integer('partner.api.timeout_seconds'),
+        ));
     }
 
     /**

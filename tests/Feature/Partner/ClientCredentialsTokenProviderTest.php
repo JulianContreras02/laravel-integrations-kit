@@ -19,15 +19,6 @@ beforeEach(function () {
     config()->set('partner.oauth.expiry_margin_seconds', 60);
 });
 
-function tokenResponse(string $token, ?int $expiresIn = 3600): array
-{
-    return array_filter([
-        'access_token' => $token,
-        'token_type' => 'Bearer',
-        'expires_in' => $expiresIn,
-    ]);
-}
-
 function tokens(): ClientCredentialsTokenProvider
 {
     return app(ClientCredentialsTokenProvider::class);

@@ -18,7 +18,7 @@ services:
     <<: *php
     command: php artisan serve --host=0.0.0.0 --port=8000
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
 
   worker:
     <<: *php
@@ -41,8 +41,8 @@ services:
       RUSTFS_ACCESS_KEY: local-access-key
       RUSTFS_SECRET_KEY: local-secret-key
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${S3_PORT:-9000}:9000"
+      - "${S3_CONSOLE_PORT:-9001}:9001"
     volumes:
       - s3-data:/data
     healthcheck:
@@ -73,7 +73,7 @@ services:
     environment:
       SFTP_USERS: partner:local-sftp-password:1001::inbound
     ports:
-      - "2222:22"
+      - "${SFTP_PORT:-2222}:22"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "22"]
       interval: 5s
@@ -84,7 +84,7 @@ services:
     image: wiremock/wiremock:3.13.2
     command: ["--global-response-templating", "--disable-banner"]
     ports:
-      - "8080:8080"
+      - "${PARTNER_API_PORT:-8080}:8080"
     volumes:
       - ./docker/wiremock:/home/wiremock
     healthcheck:
@@ -99,8 +99,7 @@ services:
       # Same ceiling as SES v1 (10 MB after base64), so an oversized email fails here too.
       MP_MAX_MESSAGE_SIZE: "10"
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "${MAILPIT_PORT:-8025}:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s

@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Lets the suite be re-run from the Actions tab without a new commit.
+  workflow_dispatch:
 
 permissions:
   contents: read

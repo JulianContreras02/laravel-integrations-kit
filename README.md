@@ -1,5 +1,7 @@
 # Laravel Integrations Kit
 
+**English** · [Español](README.es.md)
+
 [![CI](https://github.com/JulianContreras02/laravel-integrations-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/JulianContreras02/laravel-integrations-kit/actions/workflows/ci.yml)
 
 A small, finished Laravel 13 project covering the integration work most business systems end up needing: an OAuth2 API client that survives concurrency, a large Excel export that never loads into memory, an SFTP delivery that is safe to retry, and email that knows when a file is too big to attach.

@@ -135,3 +135,39 @@ it('never lets two workers deliver the same report at the same time', function (
     expect($middleware)->toHaveCount(1)
         ->and($middleware[0]->key)->toBe('daily-orders:2026-11-02');
 });
+
+describe('report:deliver --sync', function () {
+    it('says a day was delivered only once the control table says so', function () {
+        $this->artisan('report:deliver', ['--date' => '2026-11-02', '--sync' => true])
+            ->expectsOutput('Delivered 2026-11-02.')
+            ->assertSuccessful();
+    });
+
+    it('names the failed day and the error instead of crashing', function () {
+        Storage::set('partner_sftp', failingSftp());
+
+        $this->artisan('report:deliver', ['--date' => '2026-11-02', '--sync' => true])
+            ->expectsOutputToContain('Failed 2026-11-02: UnableToWriteFile')
+            ->assertFailed();
+
+        expect(ReportDelivery::sole()->exported_at)->not->toBeNull();
+    });
+
+    it('does not claim a delivery when the job stopped on a conflict', function () {
+        Storage::disk('partner_sftp')->put('daily-orders-2026-11-02.xlsx', 'a different file');
+
+        $this->artisan('report:deliver', ['--date' => '2026-11-02', '--sync' => true])
+            ->expectsOutputToContain('Failed 2026-11-02: RemoteFileConflict')
+            ->assertFailed();
+    });
+
+    it('does nothing for a day that was already delivered', function () {
+        attemptDelivery();
+
+        $this->artisan('report:deliver', ['--date' => '2026-11-02', '--sync' => true])
+            ->expectsOutput('2026-11-02 was already delivered; nothing to do.')
+            ->assertSuccessful();
+
+        Mail::assertSentCount(1);
+    });
+});

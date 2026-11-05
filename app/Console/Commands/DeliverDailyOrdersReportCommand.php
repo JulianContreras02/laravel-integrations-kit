@@ -10,6 +10,7 @@ use App\Models\ReportDeliveryStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
+use Throwable;
 
 /**
  * Without --date it catches up: every day of the last N days that has no
@@ -46,15 +47,18 @@ final class DeliverDailyOrdersReportCommand extends Command
                 return self::INVALID;
             }
 
-            $this->retryIfFailed($date);
-            $this->deliver([$date]);
+            if ($this->delivery($date)?->status === ReportDeliveryStatus::Completed) {
+                $this->info("{$date} was already delivered; nothing to do.");
 
-            return self::SUCCESS;
+                return self::SUCCESS;
+            }
+
+            $this->retryIfFailed($date);
+
+            return $this->deliver([$date]);
         }
 
-        $this->deliver($this->pendingDays($today, Config::integer('reports.catch_up_days')));
-
-        return self::SUCCESS;
+        return $this->deliver($this->pendingDays($today, Config::integer('reports.catch_up_days')));
     }
 
     /**
@@ -98,22 +102,50 @@ final class DeliverDailyOrdersReportCommand extends Command
     /**
      * @param  list<string>  $dates
      */
-    private function deliver(array $dates): void
+    private function deliver(array $dates): int
     {
         if ($dates === []) {
             $this->info('Nothing to deliver: every day in the window is settled.');
 
-            return;
+            return self::SUCCESS;
         }
 
+        $allDelivered = true;
+
         foreach ($dates as $date) {
-            if ($this->option('sync')) {
-                DeliverDailyOrdersReport::dispatchSync($date);
-                $this->info("Delivered {$date}.");
-            } else {
+            if (! $this->option('sync')) {
                 DeliverDailyOrdersReport::dispatch($date);
                 $this->info("Queued {$date}.");
+
+                continue;
+            }
+
+            $error = null;
+
+            try {
+                DeliverDailyOrdersReport::dispatchSync($date);
+            } catch (Throwable $exception) {
+                report($exception);
+                $error = class_basename($exception).': '.$exception->getMessage();
+            }
+
+            // Report what the control table says, not what we hoped for: a
+            // conflict ends the job without an exception, for example.
+            $delivery = $this->delivery($date);
+
+            if ($delivery?->status === ReportDeliveryStatus::Completed) {
+                $this->info("Delivered {$date}.");
+            } else {
+                $allDelivered = false;
+                $this->error("Failed {$date}: ".($delivery->last_error ?? $error ?? 'unknown error'));
             }
         }
+
+        return $allDelivered ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function delivery(string $date): ?ReportDelivery
+    {
+        return ReportDelivery::query()->where('report_key', DeliverDailyOrdersReport::reportKey($date))->first();
     }
 }

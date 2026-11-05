@@ -6,6 +6,10 @@ A small, finished Laravel 13 project covering the integration work most business
 
 Everything runs against simulated services in Docker Compose. No real account is needed.
 
+![Terminal recording of a real run: report:deliver delivers three business days while WireMock's journal counts a single OAuth token request; the three files appear in the partner's SFTP inbox with no .part left; the SFTP server starts refusing writes and the delivery fails after retries with backoff; once it accepts writes again, the retry resumes at the SFTP step and reuses the earlier export (two attempts in report:status); a final run has nothing left to deliver.](docs/demo/demo.gif)
+
+<sub>A real run against the Docker Compose stack, recorded with VHS from [`docs/demo/demo.tape`](docs/demo/demo.tape) (see [Recording the demo](#recording-the-demo)).</sub>
+
 ## The problem
 
 An online shop has to send its fulfillment partner a report of the previous day's orders every morning. The partner wants:
@@ -131,6 +135,10 @@ docker compose exec -e REPORT_MAIL_MAX_MESSAGE_BYTES=1 app php artisan report:de
 
 The email in Mailpit now has a "Download the report" button instead of an attachment. The link goes to the app on port 8000, which redirects to a presigned URL on port 9000. Change one character of the link and you get 403.
 
+A real large day does the same with the default 10 MB limit. With 300,000 orders the 12.2 MB file goes as a link and the whole email weighs 12.5 kB:
+
+![Mailpit showing the report email for a 300,000-order day: instead of the 12.2 MB file it has a "Download the report" button with a signed link valid for 7 days and the file's SHA-256, and the message is 12.5 kB; the smaller days in the inbox list carry the file as an attachment.](docs/demo/mailpit-signed-link.png)
+
 **The partner's SFTP server goes down.** Stop it and queue a day:
 
 ```bash
@@ -151,11 +159,25 @@ The queue retries the job 60 seconds after the failure. It skips the export (sam
 
 Ports already in use? Change `APP_PORT`, `S3_PORT`, `MAILPIT_PORT` and the others in `.env`, and keep `APP_URL` and `AWS_PUBLIC_ENDPOINT` in line with them.
 
+### Recording the demo
+
+The GIF at the top is recorded with [VHS](https://github.com/charmbracelet/vhs) from [`docs/demo/demo.tape`](docs/demo/demo.tape). The tape types the same `docker compose exec` commands as this README against the running stack, after [`prepare.sh`](docs/demo/prepare.sh) resets it to a known state. With the stack running, from the repository root:
+
+```bash
+docker build -t integrations-kit-vhs docs/demo
+```
+
+```bash
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/vhs" integrations-kit-vhs docs/demo/demo.tape
+```
+
+[`mailpit-screenshot.sh`](docs/demo/mailpit-screenshot.sh) then delivers the 300,000-order day and takes the Mailpit screenshot with the same image's Chromium.
+
 ## Tests
 
 | Suite | Command | Needs |
 |---|---|---|
-| Unit and feature (72 tests) | `docker compose run --rm --no-deps app composer test` | Nothing: HTTP, storage, mail and queue are faked |
+| Unit and feature (76 tests) | `docker compose run --rm --no-deps app composer test` | Nothing: HTTP, storage, mail and queue are faked |
 | Integration (10 tests) | `docker compose exec app composer test:integration` | The compose services running |
 | Lint and static analysis | `docker compose run --rm --no-deps app composer lint`, then `composer analyse` | Nothing |
 
@@ -265,6 +287,7 @@ app/
   Reports/                  The streaming XLSX exporter
 database/seeders/           Demo data and the synthetic bulk generator
 docker/                     PHP image and WireMock stubs for the partner
+docs/demo/                  VHS tape and scripts behind the GIF and the Mailpit screenshot
 tests/
   Feature/  Unit/           Regular suite, fakes only
   Integration/              Against the docker compose services
